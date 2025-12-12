@@ -1,0 +1,58 @@
+.mono {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+:root {
+  --page-bg: radial-gradient(circle at 20% 20%, #f0f7ff, #ffffff 35%), radial-gradient(circle at 80% 0%, #f7fbff, #ffffff 30%);
+}
+
+.header {
+  background: linear-gradient(90deg, #0b1f3a, #0e3a61);
+}
+
+.hero {
+  background: linear-gradient(135deg, rgba(22, 119, 255, 0.18), rgba(15, 23, 42, 0.05));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(22, 119, 255, 0.15);
+  margin-bottom: 16px;
+}
+
+.glass-card {
+  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.project-card {
+  border: 1px solid rgba(22, 119, 255, 0.18);
+  background: linear-gradient(135deg, rgba(22, 119, 255, 0.08), rgba(14, 58, 97, 0.04));
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.project-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+}
+
+.project-card-active {
+  box-shadow: 0 14px 30px rgba(22, 119, 255, 0.25);
+  border-color: #1677ff;
+}
+
+.container-card {
+  border-top: 3px solid #1677ff;
+}
+
+.log-area {
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  background: #0b1224;
+  min-height: 320px;
+}
+
+.logs-pre {
+  color: #e0f2ff;
+  padding: 12px;
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}

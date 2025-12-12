@@ -1,0 +1,22 @@
+:root {
+  font-family: 'Inter', system-ui, sans-serif;
+  line-height: 1.6;
+  font-weight: 400;
+  color: #0f172a;
+  background: var(--page-bg);
+  min-height: 100vh;
+}
+
+body {
+  margin: 0;
+  background: transparent;
+}
+
+a {
+  color: #1677ff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
