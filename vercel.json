@@ -5,15 +5,66 @@
       "maxDuration": 30
     }
   },
-  "headers": [
+  "routes": [
     {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Credentials", "value": "true" },
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,DELETE,OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" }
-      ]
+      "src": "/api/(.*)",
+      "methods": ["OPTIONS"],
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Max-Age": "86400"
+      },
+      "status": 204
+    },
+    {
+      "src": "/api/(.*)",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+      },
+      "continue": true
+    },
+    {
+      "src": "/api/containers/stats",
+      "dest": "/api/containers/stats.ts"
+    },
+    {
+      "src": "/api/containers/([^/]+)/([^?]*)(\\?.*)?",
+      "dest": "/api/containers/[...path].ts?path=$1&path=$2"
+    },
+    {
+      "src": "/api/containers/?",
+      "dest": "/api/containers/index.ts"
+    },
+    {
+      "src": "/api/projects/([^/]+)/([^?]*)(\\?.*)?",
+      "dest": "/api/projects/[...path].ts?path=$1&path=$2"
+    },
+    {
+      "src": "/api/projects/?",
+      "dest": "/api/projects/index.ts"
+    },
+    {
+      "src": "/api/auth/login",
+      "dest": "/api/auth/login.ts"
+    },
+    {
+      "src": "/api/auth/verify",
+      "dest": "/api/auth/verify.ts"
+    },
+    {
+      "src": "/api/system/overview",
+      "dest": "/api/system/overview.ts"
+    },
+    {
+      "src": "/api/settings/test",
+      "dest": "/api/settings/test.ts"
+    },
+    {
+      "src": "/api/health",
+      "dest": "/api/health.ts"
     }
   ]
 }

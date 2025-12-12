@@ -11,11 +11,14 @@ import {
 } from '../_lib/compose';
 
 async function handler(req: VercelRequest, res: VercelResponse) {
-  const { path } = req.query;
+  let { path } = req.query;
 
-  // path é um array: ["projectId", "action"]
+  // Normalizar path para array (pode vir como string ou array)
+  if (typeof path === 'string') {
+    path = path.split('/').filter(Boolean);
+  }
   if (!path || !Array.isArray(path) || path.length === 0) {
-    return res.status(400).json({ error: 'Invalid path' });
+    return res.status(400).json({ error: 'Invalid path', received: req.query });
   }
 
   const [projectId, action] = path;

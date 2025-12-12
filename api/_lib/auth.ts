@@ -5,9 +5,16 @@ import { loadConfig } from './config';
 
 type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void | VercelResponse>;
 
-export function setCorsHeaders(res: VercelResponse) {
-  const config = loadConfig();
-  const origin = config.corsOrigin || '*';
+export function setCorsHeaders(res: VercelResponse, req?: VercelRequest) {
+  let origin = '*';
+
+  try {
+    const config = loadConfig();
+    origin = config.corsOrigin || '*';
+  } catch {
+    // If config fails, use *
+  }
+
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -16,40 +23,45 @@ export function setCorsHeaders(res: VercelResponse) {
 
 export function withAuth(handler: Handler): Handler {
   return async (req: VercelRequest, res: VercelResponse) => {
-    setCorsHeaders(res);
-
-    // Handle CORS preflight
-    if (req.method === 'OPTIONS') {
-      return res.status(200).end();
-    }
-
-    const config = loadConfig();
-
-    // Se auth nao esta habilitada, prosseguir
-    if (!config.auth.enabled) {
-      return handler(req, res);
-    }
-
-    // Verificar token
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const token = authHeader.slice(7);
-
     try {
-      const decoded = jwt.verify(token, config.auth.jwtSecret);
-      (req as any).user = decoded;
-      return handler(req, res);
-    } catch {
-      return res.status(401).json({ error: 'Invalid token' });
+      setCorsHeaders(res, req);
+
+      // Handle CORS preflight
+      if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+      }
+
+      const config = loadConfig();
+
+      // Se auth nao esta habilitada, prosseguir
+      if (!config.auth.enabled) {
+        return handler(req, res);
+      }
+
+      // Verificar token
+      const authHeader = req.headers.authorization;
+      if (!authHeader?.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      const token = authHeader.slice(7);
+
+      try {
+        const decoded = jwt.verify(token, config.auth.jwtSecret);
+        (req as any).user = decoded;
+        return handler(req, res);
+      } catch {
+        return res.status(401).json({ error: 'Invalid token' });
+      }
+    } catch (error: any) {
+      console.error('Auth middleware error:', error);
+      return res.status(500).json({ error: error.message || 'Internal server error' });
     }
   };
 }
 
 export async function handleLogin(req: VercelRequest, res: VercelResponse) {
-  setCorsHeaders(res);
+  setCorsHeaders(res, req);
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -86,7 +98,7 @@ export async function handleLogin(req: VercelRequest, res: VercelResponse) {
 }
 
 export async function handleVerify(req: VercelRequest, res: VercelResponse) {
-  setCorsHeaders(res);
+  setCorsHeaders(res, req);
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
