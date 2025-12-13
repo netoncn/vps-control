@@ -41,11 +41,11 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ projectPath, files });
     }
 
-    // GET /api/projects/:id/file?path=
+    // GET /api/projects/:id/file?filePath=
     if (req.method === 'GET' && action === 'file') {
-      const filePath = req.query.path as string;
-      if (!filePath) {
-        return res.status(400).json({ error: 'File path required' });
+      const filePath = req.query.filePath;
+      if (!filePath || typeof filePath !== 'string') {
+        return res.status(400).json({ error: 'File path required (use filePath query param)' });
       }
       const content = await readProjectFile(filePath);
       return res.status(200).json({ content });
@@ -53,9 +53,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
     // PUT /api/projects/:id/file
     if (req.method === 'PUT' && action === 'file') {
-      const { path: filePath, content } = req.body || {};
-      if (!filePath || typeof content !== 'string') {
-        return res.status(400).json({ error: 'File path and content required' });
+      const { filePath, content } = req.body || {};
+      if (!filePath || typeof filePath !== 'string' || typeof content !== 'string') {
+        return res.status(400).json({ error: 'filePath and content required in body' });
       }
       await writeProjectFile(filePath, content);
       return res.status(200).json({ success: true });

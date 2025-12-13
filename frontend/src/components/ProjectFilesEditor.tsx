@@ -7,9 +7,9 @@ import {
   Spin,
   Alert,
   Typography,
-  Tag,
   Flex,
   Popconfirm,
+  Segmented,
 } from 'antd';
 import {
   FileTextOutlined,
@@ -17,7 +17,10 @@ import {
   RocketOutlined,
   ReloadOutlined,
   SettingOutlined,
+  TableOutlined,
+  CodeOutlined,
 } from '@ant-design/icons';
+import { EnvEditor } from './EnvEditor';
 
 const { Text, Paragraph } = Typography;
 
@@ -55,6 +58,7 @@ export function ProjectFilesEditor({
   const [fileContent, setFileContent] = useState<string>('');
   const [originalContent, setOriginalContent] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState<'structured' | 'raw'>('structured');
 
   const hasChanges = fileContent !== originalContent;
 
@@ -100,7 +104,7 @@ export function ProjectFilesEditor({
     setLoading(true);
     try {
       const data = await fetchJson<{ content: string }>(
-        `/api/projects/${projectId}/file?path=${encodeURIComponent(filePath)}`
+        `/api/projects/${projectId}/file?filePath=${encodeURIComponent(filePath)}`
       );
       setFileContent(data.content);
       setOriginalContent(data.content);
@@ -129,7 +133,7 @@ export function ProjectFilesEditor({
       await fetchJson(`/api/projects/${projectId}/file`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: activeFile, content: fileContent }),
+        body: JSON.stringify({ filePath: activeFile, content: fileContent }),
       });
       setOriginalContent(fileContent);
       onSuccess('Arquivo salvo com sucesso');
@@ -172,16 +176,14 @@ export function ProjectFilesEditor({
     }
   };
 
-  const getFileColor = (type: string) => {
-    switch (type) {
-      case 'env':
-        return 'green';
-      case 'compose':
-        return 'blue';
-      default:
-        return 'default';
-    }
-  };
+  // Agrupar arquivos: raiz primeiro, depois por subdiretório
+  const sortedFiles = [...files].sort((a, b) => {
+    const aHasSlash = a.name.includes('/');
+    const bHasSlash = b.name.includes('/');
+    if (!aHasSlash && bHasSlash) return -1;
+    if (aHasSlash && !bHasSlash) return 1;
+    return a.name.localeCompare(b.name);
+  });
 
   return (
     <Modal
@@ -193,7 +195,7 @@ export function ProjectFilesEditor({
           <span>Arquivos do Projeto: {projectName}</span>
         </Flex>
       }
-      width={900}
+      width={1000}
       footer={
         <Flex justify="space-between">
           <Space>
@@ -266,17 +268,20 @@ export function ProjectFilesEditor({
           activeKey={activeFile || undefined}
           onChange={handleTabChange}
           type="card"
-          items={files.map((file) => ({
-            key: file.path,
-            label: (
-              <Space size={4}>
-                {getFileIcon(file.type)}
-                <span>{file.name}</span>
-                <Tag color={getFileColor(file.type)} style={{ marginLeft: 4 }}>
-                  {file.type}
-                </Tag>
-              </Space>
-            ),
+          tabPosition="left"
+          style={{ minHeight: 450 }}
+          items={sortedFiles.map((file) => {
+            const isSubdir = file.name.includes('/');
+            const displayName = isSubdir ? file.name : `(raiz) ${file.name}`;
+
+            return {
+              key: file.path,
+              label: (
+                <Flex align="center" gap={6} style={{ minWidth: 160 }}>
+                  {getFileIcon(file.type)}
+                  <span style={{ fontSize: 13 }}>{displayName}</span>
+                </Flex>
+              ),
             children: (
               <div style={{ position: 'relative' }}>
                 {loading && (
@@ -297,31 +302,57 @@ export function ProjectFilesEditor({
                     <Spin />
                   </div>
                 )}
-                <textarea
-                  value={fileContent}
-                  onChange={(e) => setFileContent(e.target.value)}
-                  style={{
-                    width: '100%',
-                    height: 400,
-                    fontFamily: 'monospace',
-                    fontSize: 13,
-                    padding: 12,
-                    border: '1px solid #333',
-                    borderRadius: 8,
-                    background: '#1a1a2e',
-                    color: '#e0e0e0',
-                    resize: 'vertical',
-                  }}
-                  spellCheck={false}
-                />
+
+                {/* Mode toggle for env files */}
+                {file.type === 'env' && (
+                  <Flex justify="flex-end" style={{ marginBottom: 12 }}>
+                    <Segmented
+                      size="small"
+                      value={editMode}
+                      onChange={(value) => setEditMode(value as 'structured' | 'raw')}
+                      options={[
+                        { label: 'Estruturado', value: 'structured', icon: <TableOutlined /> },
+                        { label: 'Texto', value: 'raw', icon: <CodeOutlined /> },
+                      ]}
+                    />
+                  </Flex>
+                )}
+
+                {/* Structured env editor */}
+                {file.type === 'env' && editMode === 'structured' ? (
+                  <EnvEditor
+                    content={fileContent}
+                    onChange={setFileContent}
+                  />
+                ) : (
+                  <textarea
+                    value={fileContent}
+                    onChange={(e) => setFileContent(e.target.value)}
+                    style={{
+                      width: '100%',
+                      height: 400,
+                      fontFamily: 'monospace',
+                      fontSize: 13,
+                      padding: 12,
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 8,
+                      background: 'var(--bg-elevated)',
+                      color: 'var(--text-primary)',
+                      resize: 'vertical',
+                    }}
+                    spellCheck={false}
+                  />
+                )}
+
                 {hasChanges && (
                   <Text type="warning" style={{ display: 'block', marginTop: 8 }}>
-                    * Alterações não salvas
+                    * Alteracoes nao salvas
                   </Text>
                 )}
               </div>
             ),
-          }))}
+            };
+          })}
         />
       )}
     </Modal>

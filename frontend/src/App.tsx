@@ -14,7 +14,7 @@ import {
   Flex,
   Space,
 } from 'antd';
-import { SettingOutlined, AppstoreOutlined, FileTextOutlined } from '@ant-design/icons';
+import { SettingOutlined, AppstoreOutlined } from '@ant-design/icons';
 import { ThemeProvider } from './theme/ThemeContext';
 import { AppHeader } from './components/AppHeader';
 import { StatsPanel } from './components/StatsPanel';
@@ -265,6 +265,7 @@ function Dashboard() {
         loading={loading}
         onRefresh={refresh}
         onLogout={logout}
+        onOpenLogs={() => setLogsDrawerOpen(true)}
       />
 
       <Content style={{ padding: 24 }}>
@@ -321,30 +322,6 @@ function Dashboard() {
                           ))}
                         </Row>
                       )}
-                    </div>
-                  ),
-                },
-                {
-                  key: 'logs',
-                  label: (
-                    <Flex align="center" gap={8}>
-                      <FileTextOutlined />
-                      Logs
-                    </Flex>
-                  ),
-                  children: (
-                    <div style={{ padding: '16px 0' }}>
-                      <Alert
-                        message="Visualizar Logs"
-                        description="Clique no botão de logs em qualquer container para abrir o painel de logs."
-                        type="info"
-                        showIcon
-                        action={
-                          <Button onClick={() => setLogsDrawerOpen(true)}>
-                            Abrir Painel de Logs
-                          </Button>
-                        }
-                      />
                     </div>
                   ),
                 },

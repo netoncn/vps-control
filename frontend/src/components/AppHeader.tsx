@@ -5,6 +5,7 @@ import {
   SunOutlined,
   MoonOutlined,
   CloudServerOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import { useTheme } from '../theme/ThemeContext';
 
@@ -16,9 +17,10 @@ type AppHeaderProps = {
   loading: boolean;
   onRefresh: () => void;
   onLogout: () => void;
+  onOpenLogs: () => void;
 };
 
-export function AppHeader({ authRequired, loading, onRefresh, onLogout }: AppHeaderProps) {
+export function AppHeader({ authRequired, loading, onRefresh, onLogout, onOpenLogs }: AppHeaderProps) {
   const { mode, toggleTheme } = useTheme();
 
   return (
@@ -58,6 +60,15 @@ export function AppHeader({ authRequired, loading, onRefresh, onLogout }: AppHea
             onClick={toggleTheme}
             style={{ fontSize: 18 }}
           />
+        </Tooltip>
+
+        <Tooltip title="Ver logs dos containers">
+          <Button
+            icon={<FileTextOutlined />}
+            onClick={onOpenLogs}
+          >
+            Logs
+          </Button>
         </Tooltip>
 
         <Button

@@ -48,9 +48,14 @@ export const lightTheme: ThemeConfig = {
     },
     Card: {
       colorBgContainer: '#ffffff',
+      colorBorderSecondary: '#e2e8f0',
     },
     Button: {
       primaryShadow: '0 2px 4px -1px rgba(59, 130, 246, 0.3)',
+    },
+    Tooltip: {
+      colorBgSpotlight: '#1e293b',
+      colorTextLightSolid: '#f1f5f9',
     },
   },
 };
@@ -84,9 +89,14 @@ export const darkTheme: ThemeConfig = {
     },
     Card: {
       colorBgContainer: '#1e293b',
+      colorBorderSecondary: '#475569',
     },
     Button: {
       primaryShadow: '0 2px 4px -1px rgba(96, 165, 250, 0.3)',
+    },
+    Tooltip: {
+      colorBgSpotlight: '#334155',
+      colorTextLightSolid: '#f1f5f9',
     },
   },
 };

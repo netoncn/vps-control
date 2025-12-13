@@ -33,29 +33,90 @@ export async function findComposeProjectPath(projectName: string): Promise<strin
 
 /**
  * Lista arquivos relevantes de um projeto compose
+ * Busca docker-compose na raiz e extrai env_file dos serviços
  */
 export async function listProjectFiles(projectPath: string): Promise<ComposeFile[]> {
   const files: ComposeFile[] = [];
+  const addedPaths = new Set<string>();
 
-  // Verificar arquivos comuns
-  const checkFiles = [
-    { name: '.env', type: 'env' as const },
-    { name: 'docker-compose.yml', type: 'compose' as const },
-    { name: 'docker-compose.yaml', type: 'compose' as const },
-    { name: 'compose.yml', type: 'compose' as const },
-    { name: 'compose.yaml', type: 'compose' as const },
-    { name: '.env.local', type: 'env' as const },
-    { name: '.env.production', type: 'env' as const },
+  // Arquivos compose na raiz
+  const composeFiles = [
+    'docker-compose.yml',
+    'docker-compose.yaml',
+    'compose.yml',
+    'compose.yaml',
   ];
 
-  for (const file of checkFiles) {
-    const { code } = await execSSH(`test -f "${projectPath}/${file.name}" && echo "exists"`);
+  let composeFilePath: string | null = null;
+
+  // Encontrar e adicionar o arquivo compose
+  for (const fileName of composeFiles) {
+    const fullPath = `${projectPath}/${fileName}`;
+    const { code } = await execSSH(`test -f "${fullPath}" && echo "exists"`);
     if (code === 0) {
       files.push({
-        name: file.name,
-        path: `${projectPath}/${file.name}`,
-        type: file.type,
+        name: fileName,
+        path: fullPath,
+        type: 'compose',
       });
+      addedPaths.add(fullPath);
+      composeFilePath = fullPath;
+      break;
+    }
+  }
+
+  // Extrair env_file do docker-compose.yml
+  if (composeFilePath) {
+    const { stdout: composeContent } = await execSSH(`cat "${composeFilePath}"`);
+
+    // Regex para encontrar env_file (suporta lista ou string única)
+    const envFileMatches = composeContent.match(/env_file:\s*\n(\s+-\s*.+\n?)+|env_file:\s*.+/g);
+
+    if (envFileMatches) {
+      for (const match of envFileMatches) {
+        // Extrair os caminhos dos arquivos
+        const paths = match
+          .replace('env_file:', '')
+          .split('\n')
+          .map(line => line.replace(/^\s*-?\s*/, '').trim())
+          .filter(line => line && !line.startsWith('#'));
+
+        for (const envPath of paths) {
+          // Resolver caminho relativo
+          const fullEnvPath = envPath.startsWith('/')
+            ? envPath
+            : `${projectPath}/${envPath}`;
+
+          if (addedPaths.has(fullEnvPath)) continue;
+
+          const { code } = await execSSH(`test -f "${fullEnvPath}" && echo "exists"`);
+          if (code === 0) {
+            files.push({
+              name: envPath,
+              path: fullEnvPath,
+              type: 'env',
+            });
+            addedPaths.add(fullEnvPath);
+          }
+        }
+      }
+    }
+  }
+
+  // Também buscar .env na raiz se existir
+  const rootEnvFiles = ['.env', '.env.local', '.env.production'];
+  for (const envFile of rootEnvFiles) {
+    const fullPath = `${projectPath}/${envFile}`;
+    if (addedPaths.has(fullPath)) continue;
+
+    const { code } = await execSSH(`test -f "${fullPath}" && echo "exists"`);
+    if (code === 0) {
+      files.push({
+        name: envFile,
+        path: fullPath,
+        type: 'env',
+      });
+      addedPaths.add(fullPath);
     }
   }
 
@@ -112,11 +173,25 @@ export async function writeProjectFile(filePath: string, content: string): Promi
 }
 
 /**
- * Faz deploy do projeto (docker-compose up -d)
+ * Detecta o comando do docker compose (V1 ou V2)
+ */
+async function getComposeCommand(): Promise<string> {
+  // Tentar docker compose (V2) primeiro
+  const { code } = await execSSH('docker compose version 2>/dev/null');
+  if (code === 0) {
+    return 'docker compose';
+  }
+  // Fallback para docker-compose (V1)
+  return 'docker-compose';
+}
+
+/**
+ * Faz deploy do projeto (docker compose up -d)
  */
 export async function deployProject(projectPath: string): Promise<string> {
+  const composeCmd = await getComposeCommand();
   const { stdout, stderr, code } = await execSSH(
-    `cd "${projectPath}" && docker-compose up -d 2>&1`
+    `cd "${projectPath}" && ${composeCmd} up -d 2>&1`
   );
 
   if (code !== 0 && !stdout.includes('up-to-date') && !stdout.includes('Started') && !stdout.includes('Running')) {
@@ -130,8 +205,9 @@ export async function deployProject(projectPath: string): Promise<string> {
  * Faz pull das imagens e recria os containers
  */
 export async function redeployProject(projectPath: string): Promise<string> {
+  const composeCmd = await getComposeCommand();
   const { stdout, stderr, code } = await execSSH(
-    `cd "${projectPath}" && docker-compose pull && docker-compose up -d --force-recreate 2>&1`
+    `cd "${projectPath}" && ${composeCmd} pull && ${composeCmd} up -d --force-recreate 2>&1`
   );
 
   if (code !== 0) {
