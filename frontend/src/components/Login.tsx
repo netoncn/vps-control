@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Button, Card, Form, Input, Typography, Space, Alert } from 'antd';
-import { LockOutlined, UserOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { Button, Card, Form, Input, Typography, Space, Alert, Flex } from 'antd';
+import { LockOutlined, UserOutlined, CloudServerOutlined } from '@ant-design/icons';
+import { useTheme } from '../theme/ThemeContext';
 
 const { Title, Text } = Typography;
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -12,6 +13,7 @@ type LoginProps = {
 export function Login({ onLogin }: LoginProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { mode } = useTheme();
 
   const handleSubmit = async (values: { username: string; password: string }) => {
     setLoading(true);
@@ -26,13 +28,13 @@ export function Login({ onLogin }: LoginProps) {
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Login failed');
+        throw new Error(data.error || 'Login falhou');
       }
 
       const { token } = await res.json();
       onLogin(token);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Login failed';
+      const message = err instanceof Error ? err.message : 'Login falhou';
       setError(message);
     } finally {
       setLoading(false);
@@ -40,13 +42,14 @@ export function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div
+    <Flex
+      justify="center"
+      align="center"
       style={{
         minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+        background: mode === 'dark'
+          ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)'
+          : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
         padding: 24,
       }}
     >
@@ -54,33 +57,57 @@ export function Login({ onLogin }: LoginProps) {
         style={{
           width: '100%',
           maxWidth: 400,
-          borderRadius: 16,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+          boxShadow: mode === 'dark'
+            ? '0 8px 32px rgba(0,0,0,0.4)'
+            : '0 8px 32px rgba(0,0,0,0.1)',
         }}
-        bordered={false}
       >
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <div style={{ textAlign: 'center' }}>
-            <ThunderboltOutlined style={{ fontSize: 48, color: '#1677ff', marginBottom: 16 }} />
-            <Title level={2} style={{ margin: 0 }}>
-              VPS Docker Control
-            </Title>
-            <Text type="secondary">Faca login para continuar</Text>
-          </div>
+          <Flex vertical align="center" gap={12}>
+            <div
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: 16,
+                background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <CloudServerOutlined style={{ fontSize: 32, color: '#fff' }} />
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <Title level={3} style={{ margin: 0 }}>
+                VPS Control
+              </Title>
+              <Text type="secondary">Faça login para continuar</Text>
+            </div>
+          </Flex>
 
           {error && (
-            <Alert message={error} type="error" showIcon closable onClose={() => setError(null)} />
+            <Alert
+              message={error}
+              type="error"
+              showIcon
+              closable
+              onClose={() => setError(null)}
+            />
           )}
 
-          <Form layout="vertical" onFinish={handleSubmit} autoComplete="off">
+          <Form
+            layout="vertical"
+            onFinish={handleSubmit}
+            autoComplete="off"
+            size="large"
+          >
             <Form.Item
               name="username"
-              rules={[{ required: true, message: 'Digite o usuario' }]}
+              rules={[{ required: true, message: 'Digite o usuário' }]}
             >
               <Input
-                prefix={<UserOutlined />}
-                placeholder="Usuario"
-                size="large"
+                prefix={<UserOutlined style={{ color: 'var(--ant-color-text-tertiary)' }} />}
+                placeholder="Usuário"
                 autoComplete="username"
               />
             </Form.Item>
@@ -90,9 +117,8 @@ export function Login({ onLogin }: LoginProps) {
               rules={[{ required: true, message: 'Digite a senha' }]}
             >
               <Input.Password
-                prefix={<LockOutlined />}
+                prefix={<LockOutlined style={{ color: 'var(--ant-color-text-tertiary)' }} />}
                 placeholder="Senha"
-                size="large"
                 autoComplete="current-password"
               />
             </Form.Item>
@@ -101,9 +127,9 @@ export function Login({ onLogin }: LoginProps) {
               <Button
                 type="primary"
                 htmlType="submit"
-                size="large"
                 block
                 loading={loading}
+                style={{ height: 48, fontWeight: 600 }}
               >
                 Entrar
               </Button>
@@ -111,6 +137,6 @@ export function Login({ onLogin }: LoginProps) {
           </Form>
         </Space>
       </Card>
-    </div>
+    </Flex>
   );
 }

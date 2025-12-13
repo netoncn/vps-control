@@ -1,50 +1,35 @@
 import { useEffect, useState } from 'react';
 import {
   App as AntdApp,
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Col,
-  ConfigProvider,
-  Divider,
-  Flex,
   Layout,
-  Modal,
-  Progress,
   Row,
-  Tabs,
+  Col,
+  Card,
+  Empty,
   Spin,
-  Segmented,
-  Select,
-  Space,
-  Statistic,
-  Tag,
+  Tabs,
+  Button,
+  Alert,
   Typography,
-  InputNumber,
-  Input,
+  Flex,
+  Space,
 } from 'antd';
-import {
-  PlayCircleOutlined,
-  PauseCircleOutlined,
-  ReloadOutlined,
-  ThunderboltOutlined,
-  ApiOutlined,
-  SettingOutlined,
-  ContainerOutlined,
-  DatabaseOutlined,
-  PieChartOutlined,
-  FireOutlined,
-  LogoutOutlined,
-  FileTextOutlined,
-} from '@ant-design/icons';
-import './App.css';
+import { SettingOutlined, AppstoreOutlined, FileTextOutlined } from '@ant-design/icons';
+import { ThemeProvider } from './theme/ThemeContext';
+import { AppHeader } from './components/AppHeader';
+import { StatsPanel } from './components/StatsPanel';
+import { ProjectCard } from './components/ProjectCard';
+import { LogsDrawer } from './components/LogsDrawer';
+import { InspectDrawer } from './components/InspectDrawer';
+import { ProjectFilesEditor } from './components/ProjectFilesEditor';
 import { Login } from './components/Login';
 import { useAuth } from './hooks/useAuth';
-import { ProjectFilesEditor } from './components/ProjectFilesEditor';
+import './App.css';
 
-const { Header, Content } = Layout;
-const { Title, Text, Paragraph, Link } = Typography;
+const { Content } = Layout;
+const { Title, Paragraph } = Typography;
+
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 type ContainerInfo = {
   id: string;
@@ -88,13 +73,6 @@ type ContainerStats = {
   memPercent?: number;
 };
 
-type ResourceModalState = {
-  open: boolean;
-  container?: ContainerInfo;
-  cpus?: string;
-  memory?: string;
-};
-
 type SystemOverview = {
   cores: number;
   load: number[];
@@ -114,9 +92,6 @@ type SystemOverview = {
   }>;
 };
 
-const LINES_OPTIONS = ['100', '500', '1000'];
-const API_URL = import.meta.env.VITE_API_URL || '';
-
 function createFetchJson(token: string | null) {
   return async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
     const headers = new Headers(init?.headers);
@@ -133,278 +108,30 @@ function createFetchJson(token: string | null) {
   };
 }
 
-function statusColor(state: string) {
-  if (state === 'running') return 'green';
-  if (state === 'exited') return 'default';
-  return 'warning';
-}
-
-function formatBytes(bytes?: number) {
-  if (!bytes && bytes !== 0) return '-';
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ['KB', 'MB', 'GB', 'TB'];
-  let value = bytes;
-  let idx = 0;
-  while (value >= 1024 && idx < units.length - 1) {
-    value /= 1024;
-    idx++;
-  }
-  return `${value.toFixed(1)} ${units[idx]}`;
-}
-
-function formatGb(bytes?: number) {
-  if (!bytes && bytes !== 0) return '-';
-  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
-}
-
-function StatsRow({
-  running,
-  stopped,
-  projectsCount,
-}: {
-  running: number;
-  stopped: number;
-  projectsCount: number;
-}) {
-  const total = running + stopped;
-  const runningPercent = total ? Math.round((running / total) * 100) : 0;
-  return (
-    <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-      <Col xs={24} md={8}>
-        <Card className="glass-card" bordered={false}>
-          <Statistic
-            title="Running containers"
-            value={running}
-            prefix={<PlayCircleOutlined style={{ color: '#52c41a' }} />}
-          />
-          <Progress percent={runningPercent} size="small" showInfo={false} strokeColor="#52c41a" style={{ marginTop: 12 }} />
-        </Card>
-      </Col>
-      <Col xs={24} md={8}>
-        <Card className="glass-card" bordered={false}>
-          <Statistic
-            title="Stopped containers"
-            value={stopped}
-            prefix={<PauseCircleOutlined style={{ color: '#d9d9d9' }} />}
-          />
-        </Card>
-      </Col>
-      <Col xs={24} md={8}>
-        <Card className="glass-card" bordered={false}>
-          <Statistic
-            title="Projects detected"
-            value={projectsCount}
-            prefix={<ContainerOutlined style={{ color: '#1890ff' }} />}
-          />
-          <Text type="secondary">Auto (labels) + manual groups</Text>
-        </Card>
-      </Col>
-    </Row>
-  );
-}
-
-function SystemOverviewCards({ system }: { system: SystemOverview | null }) {
-  if (!system) {
-    return (
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col span={24}>
-          <Card className="glass-card" bordered={false}>
-            <Spin /> <Text type="secondary">Carregando visão da VPS...</Text>
-          </Card>
-        </Col>
-      </Row>
-    );
-  }
-
-  const diskRoot = system.disk.find((d) => d.target === '/') || system.disk[0];
-  const loadLabel = system.load.slice(0, 3).join(' ');
-  const memPercent = system.memory.usedPercent;
-
-  return (
-    <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-      <Col xs={24} md={8}>
-        <Card className="glass-card" bordered={false}>
-          <Statistic title="CPU cores" value={system.cores} />
-          <Text type="secondary">Load (1m/5m/15m): {loadLabel}</Text>
-        </Card>
-      </Col>
-      <Col xs={24} md={8}>
-        <Card className="glass-card" bordered={false}>
-          <Statistic title="Memória (MB)" value={system.memory.usedMb} suffix={`/ ${system.memory.totalMb}`} />
-          <Progress percent={memPercent} size="small" status={memPercent > 85 ? 'exception' : 'active'} />
-          <Text type="secondary">{system.memory.freeMb} MB livres</Text>
-        </Card>
-      </Col>
-      <Col xs={24} md={8}>
-        <Card className="glass-card" bordered={false}>
-          <Flex justify="space-between" align="center">
-            <Statistic
-              title="Disco principal"
-              value={diskRoot ? diskRoot.usedBytes / 1024 ** 3 : 0}
-              precision={1}
-              suffix="GB usados"
-            />
-            <PieChartOutlined style={{ fontSize: 28, color: '#1677ff' }} />
-          </Flex>
-          {diskRoot && (
-            <>
-              <Progress
-                percent={diskRoot.usedPercent}
-                size="small"
-                status={diskRoot.usedPercent > 90 ? 'exception' : 'active'}
-              />
-              <Text type="secondary">
-                {diskRoot.fs} · {(diskRoot.availBytes / 1024 ** 3).toFixed(1)} GB livres · {diskRoot.target}
-              </Text>
-            </>
-          )}
-        </Card>
-      </Col>
-    </Row>
-  );
-}
-
-function Dashboard({
-  projects,
-  onSelectProject,
-  activeProjectId,
-}: {
-  projects: ProjectsResponse;
-  onSelectProject: (p: ProjectWithContainers) => void;
-  activeProjectId?: string;
-}) {
-  const allProjects = [...projects.autoProjects, ...projects.manualProjects];
-  return (
-    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-      <Flex justify="space-between" align="center">
-        <Title level={3} style={{ margin: 0 }}>
-          Projetos
-        </Title>
-        <Tag color="blue">Auto labels + manual</Tag>
-      </Flex>
-      <Row gutter={[16, 16]}>
-        {allProjects.map((p) => {
-          const running = p.containers.filter((c) => c.state === 'running').length;
-          const percent = p.containers.length ? Math.round((running / p.containers.length) * 100) : 0;
-          return (
-            <Col xs={24} sm={12} lg={8} key={p.project.id}>
-              <Card
-                className={`project-card ${activeProjectId === p.project.id ? 'project-card-active' : ''}`}
-                onClick={() => onSelectProject(p)}
-                hoverable
-                bordered={false}
-              >
-                <Flex justify="space-between" align="flex-start">
-                  <div>
-                    <Text strong>{p.project.name}</Text>
-                    <Paragraph type="secondary" style={{ marginBottom: 4 }}>
-                      {p.project.composeProject ? `compose: ${p.project.composeProject}` : 'manual grouping'}
-                    </Paragraph>
-                  </div>
-                  <Tag color={p.project.source === 'auto' ? 'blue' : 'purple'}>{p.project.source}</Tag>
-                </Flex>
-                <Flex justify="space-between" align="center">
-                  <Text type="secondary">
-                    {running}/{p.containers.length} running
-                  </Text>
-                  <Badge status={percent === 100 ? 'success' : percent === 0 ? 'default' : 'warning'} text={`${percent}%`} />
-                </Flex>
-              </Card>
-            </Col>
-          );
-        })}
-      </Row>
-    </Space>
-  );
-}
-
-function ContainerCard({
-  container,
-  onStart,
-  onStop,
-  onRestart,
-  onInspect,
-  onSelectLogs,
-  stats,
-}: {
-  container: ContainerInfo;
-  onStart: () => void;
-  onStop: () => void;
-  onRestart: () => void;
-  onInspect: () => void;
-  onSelectLogs: () => void;
-  stats?: ContainerStats;
-}) {
-  return (
-    <Card className="container-card" bordered={false} hoverable>
-      <Flex justify="space-between" align="flex-start">
-        <div>
-          <Text strong>{container.name}</Text>
-          <Paragraph type="secondary" style={{ marginBottom: 4 }}>
-            {container.image}
-          </Paragraph>
-        </div>
-        <Tag color={statusColor(container.state)}>{container.state}</Tag>
-      </Flex>
-      <Paragraph type="secondary" style={{ marginBottom: 4 }}>
-        {container.status}
-      </Paragraph>
-      {container.ports && (
-        <Tag color="blue" style={{ marginBottom: 8 }}>
-          {container.ports}
-        </Tag>
-      )}
-      {stats && (
-        <Space size="small" style={{ marginBottom: 8 }}>
-          <Tag color={stats.cpuPercent && stats.cpuPercent > 85 ? 'red' : 'blue'}>
-            CPU {stats.cpuPercent?.toFixed(1) ?? '-'}%
-          </Tag>
-          <Tag color="cyan">
-            MEM {formatBytes(stats.memUsageBytes)} / {formatBytes(stats.memLimitBytes)}
-          </Tag>
-        </Space>
-      )}
-      <Space wrap>
-        <Button size="small" onClick={onStart}>
-          Start
-        </Button>
-        <Button size="small" danger onClick={onStop}>
-          Stop
-        </Button>
-        <Button size="small" type="primary" ghost onClick={onRestart}>
-          Restart
-        </Button>
-        <Button size="small" onClick={onInspect}>
-          Env & Limits
-        </Button>
-        <Button size="small" onClick={onSelectLogs}>
-          Logs
-        </Button>
-      </Space>
-    </Card>
-  );
-}
-
-function App() {
+function Dashboard() {
   const { token, authRequired, checking, isAuthenticated, login, logout } = useAuth();
   const [projects, setProjects] = useState<ProjectsResponse>({ manualProjects: [], autoProjects: [] });
   const [containers, setContainers] = useState<ContainerInfo[]>([]);
-  const [activeProject, setActiveProject] = useState<ProjectWithContainers | undefined>(undefined);
-  const [inspectData, setInspectData] = useState<ContainerInspect | null>(null);
-  const [inspectContainer, setInspectContainer] = useState<ContainerInfo | null>(null);
-  const [stats, setStats] = useState<ContainerStats | null>(null);
-  const [logs, setLogs] = useState('');
-  const [logsContainer, setLogsContainer] = useState<string | null>(null);
-  const [lines, setLines] = useState<string>('100');
-  const [resourceModal, setResourceModal] = useState<ResourceModalState>({ open: false });
-  const [settingsStatus, setSettingsStatus] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(false);
-  const [logsTabKey, setLogsTabKey] = useState<string>('dashboard');
-  const [filesEditorProject, setFilesEditorProject] = useState<{ id: string; name: string } | null>(null);
-  const { message, notification } = AntdApp.useApp();
   const [systemInfo, setSystemInfo] = useState<SystemOverview | null>(null);
   const [statsAll, setStatsAll] = useState<ContainerStats[]>([]);
+  const [loading, setLoading] = useState(false);
 
+  // Drawers
+  const [logsDrawerOpen, setLogsDrawerOpen] = useState(false);
+  const [logsContainerId, setLogsContainerId] = useState<string | null>(null);
+  const [inspectDrawerOpen, setInspectDrawerOpen] = useState(false);
+  const [inspectContainer, setInspectContainer] = useState<ContainerInfo | null>(null);
+  const [inspectData, setInspectData] = useState<ContainerInspect | null>(null);
+  const [inspectStats, setInspectStats] = useState<ContainerStats | null>(null);
+  const [inspectLoading, setInspectLoading] = useState(false);
+
+  // Files Editor
+  const [filesEditorProject, setFilesEditorProject] = useState<{ id: string; name: string } | null>(null);
+
+  // Settings test
+  const [settingsStatus, setSettingsStatus] = useState<string>('');
+
+  const { message, notification } = AntdApp.useApp();
   const fetchJson = createFetchJson(token);
 
   const refresh = async () => {
@@ -420,14 +147,8 @@ function App() {
       setContainers(containersRes.containers);
       setSystemInfo(sysRes);
       setStatsAll(statsRes);
-      if (activeProject) {
-        const refreshed = [...projRes.autoProjects, ...projRes.manualProjects].find(
-          (p) => p.project.id === activeProject.project.id,
-        );
-        setActiveProject(refreshed);
-      }
     } catch (err: any) {
-      notification.error({ message: 'Failed to refresh', description: err.message });
+      notification.error({ message: 'Erro ao atualizar', description: err.message });
     } finally {
       setLoading(false);
     }
@@ -443,79 +164,69 @@ function App() {
   const handleProjectAction = async (id: string, action: 'start' | 'stop' | 'restart') => {
     try {
       await fetchJson(`/api/projects/${id}/${action}`, { method: 'POST' });
-      message.success(`Project ${action} OK`);
+      message.success(`Projeto ${action === 'start' ? 'iniciado' : action === 'stop' ? 'parado' : 'reiniciado'}`);
       await refresh();
     } catch (err: any) {
-      notification.error({ message: `Failed to ${action}`, description: err.message });
+      notification.error({ message: `Erro ao ${action}`, description: err.message });
     }
   };
 
   const handleContainerAction = async (id: string, action: 'start' | 'stop' | 'restart') => {
     try {
       await fetchJson(`/api/containers/${id}/${action}`, { method: 'POST' });
-      message.success(`Container ${action} OK`);
+      message.success(`Container ${action === 'start' ? 'iniciado' : action === 'stop' ? 'parado' : 'reiniciado'}`);
       await refresh();
     } catch (err: any) {
-      notification.error({ message: `Failed to ${action}`, description: err.message });
+      notification.error({ message: `Erro ao ${action}`, description: err.message });
     }
+  };
+
+  const handleViewLogs = (containerId: string) => {
+    setLogsContainerId(containerId);
+    setLogsDrawerOpen(true);
+  };
+
+  const handleFetchLogs = async (containerId: string, lines: string): Promise<string> => {
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const res = await fetch(`${API_URL}/api/containers/${containerId}/logs?lines=${lines}`, { headers });
+    return res.text();
   };
 
   const handleInspect = async (container: ContainerInfo) => {
+    setInspectContainer(container);
+    setInspectDrawerOpen(true);
+    setInspectLoading(true);
     try {
-      const data = await fetchJson<ContainerInspect>(`/api/containers/${container.id}/inspect`);
-      setInspectContainer(container);
+      const [data, stat] = await Promise.all([
+        fetchJson<ContainerInspect>(`/api/containers/${container.id}/inspect`),
+        fetchJson<ContainerStats>(`/api/containers/${container.id}/stats`),
+      ]);
       setInspectData(data);
-      const stat = await fetchJson<ContainerStats>(`/api/containers/${container.id}/stats`);
-      setStats(stat);
+      setInspectStats(stat);
     } catch (err: any) {
-      notification.error({ message: 'Inspect failed', description: err.message });
+      notification.error({ message: 'Erro ao inspecionar', description: err.message });
+    } finally {
+      setInspectLoading(false);
     }
   };
 
-  const handleLogsFetch = async (id: string, count: string) => {
+  const handleUpdateResources = async (cpus?: string, memory?: string) => {
+    if (!inspectContainer) return;
     try {
-      const headers: HeadersInit = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      const res = await fetch(`${API_URL}/api/containers/${id}/logs?lines=${count}`, { headers });
-      const data = await res.text();
-      setLogs(data);
-      setLogsContainer(id);
-      setLogsTabKey('logs');
-    } catch (err: any) {
-      notification.error({ message: 'Logs failed', description: err.message });
-    }
-  };
-
-  const openResourceModal = (container: ContainerInfo, defaults?: { cpus?: string; memory?: string }) => {
-    setResourceModal({ open: true, container, cpus: defaults?.cpus, memory: defaults?.memory });
-  };
-
-  const confirmResourceUpdate = async () => {
-    if (!resourceModal.container) return;
-    const { container, cpus, memory } = resourceModal;
-    try {
-      await fetchJson(`/api/containers/${container.id}/resources`, {
+      await fetchJson(`/api/containers/${inspectContainer.id}/resources`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cpus, memory }),
       });
-      message.success('Resource limits applied');
-      setResourceModal({ open: false });
-      await refresh();
+      message.success('Recursos atualizados');
+      await handleInspect(inspectContainer);
     } catch (err: any) {
-      notification.error({ message: 'Update failed', description: err.message });
+      notification.error({ message: 'Erro ao atualizar recursos', description: err.message });
+      throw err;
     }
-  };
-
-  const resourceCommandPreview = () => {
-    const { container, cpus, memory } = resourceModal;
-    if (!container) return '';
-    const flags = [];
-    if (cpus) flags.push(`--cpus=${cpus}`);
-    if (memory) flags.push(`--memory=${memory}`);
-    return `docker update ${flags.join(' ')} ${container.name || container.id}`;
   };
 
   const testConnection = async () => {
@@ -524,391 +235,202 @@ function App() {
       setSettingsStatus(res.output);
       message.success(res.output);
     } catch (err: any) {
-      notification.error({ message: 'SSH failed', description: err.message });
+      notification.error({ message: 'Erro SSH', description: err.message });
       setSettingsStatus(err.message);
     }
   };
 
-  // Mostrar loading enquanto verifica auth
+  // Loading state
   if (checking) {
     return (
-      <ConfigProvider
-        theme={{ token: { colorPrimary: '#1677ff' } }}
-      >
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1a1a2e' }}>
-          <Spin size="large" />
-        </div>
-      </ConfigProvider>
+      <Flex justify="center" align="center" style={{ minHeight: '100vh' }}>
+        <Spin size="large" />
+      </Flex>
     );
   }
 
-  // Mostrar login se auth e necessario e nao esta autenticado
+  // Login required
   if (authRequired && !isAuthenticated) {
-    return (
-      <ConfigProvider
-        theme={{ token: { colorPrimary: '#1677ff', fontFamily: 'Inter, system-ui, sans-serif', borderRadius: 10 } }}
-      >
-        <Login onLogin={login} />
-      </ConfigProvider>
-    );
+    return <Login onLogin={login} />;
   }
+
+  const allProjects = [...projects.autoProjects, ...projects.manualProjects];
+  const runningContainers = containers.filter((c) => c.state === 'running').length;
+  const stoppedContainers = containers.filter((c) => c.state !== 'running').length;
 
   return (
-    <ConfigProvider
-      theme={{
-        token: {
-          colorPrimary: '#1677ff',
-          fontFamily: 'Inter, system-ui, sans-serif',
-          borderRadius: 10,
-        },
-      }}
-    >
-      <AntdApp>
-        <Layout style={{ minHeight: '100vh', background: 'var(--page-bg)' }}>
-          <Header className="header">
-            <Flex align="center" justify="space-between" style={{ height: '100%' }}>
-              <Space>
-                {authRequired ? <Tag color="green">AUTHENTICATED</Tag> : <Tag color="blue">LOCAL ONLY</Tag>}
-                <Title level={4} style={{ margin: 0, color: '#fff' }}>
-                  VPS Docker Control
-                </Title>
-              </Space>
-              <Space>
-                <Button icon={<ReloadOutlined />} onClick={refresh} loading={loading}>
-                  Atualizar
-                </Button>
-                {authRequired && (
-                  <Button icon={<LogoutOutlined />} onClick={logout} danger>
-                    Sair
-                  </Button>
-                )}
-              </Space>
-            </Flex>
-          </Header>
-          <Content style={{ padding: '16px 24px 40px' }}>
-            <Card className="hero" bordered={false}>
-              <Space direction="vertical" size={6}>
-                <Tag icon={<ThunderboltOutlined />} color="green">
-                  Live via SSH
-                </Tag>
-                <Title level={2} style={{ margin: 0 }}>
-                  Controle e monitore seus projetos Docker no VPS
-                </Title>
-                <Paragraph type="secondary" style={{ maxWidth: 640 }}>
-                  Agrupamento automático por docker-compose, grupos manuais, logs em tempo real, e ajustes de recursos — tudo via SSH seguro.
-                </Paragraph>
-              </Space>
-              <Space>
-                <Tag color="blue" icon={<ApiOutlined />}>
-                  API local
-                </Tag>
-                <Tag color="gold" icon={<DatabaseOutlined />}>
-                  Store local
-                </Tag>
-              </Space>
-            </Card>
+    <Layout style={{ minHeight: '100vh' }}>
+      <AppHeader
+        authRequired={authRequired || false}
+        loading={loading}
+        onRefresh={refresh}
+        onLogout={logout}
+      />
 
-            <SystemOverviewCards system={systemInfo} />
+      <Content style={{ padding: 24 }}>
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          {/* Stats Panel */}
+          <StatsPanel
+            runningContainers={runningContainers}
+            stoppedContainers={stoppedContainers}
+            projectsCount={allProjects.length}
+            systemInfo={systemInfo}
+          />
 
-            <StatsRow
-              running={containers.filter((c) => c.state === 'running').length}
-              stopped={containers.filter((c) => c.state !== 'running').length}
-              projectsCount={projects.autoProjects.length + projects.manualProjects.length}
-            />
-
-            <Card bordered={false} className="glass-card">
-              <Tabs
-                activeKey={logsTabKey}
-                onChange={setLogsTabKey}
-                items={[
-                  {
-                    key: 'dashboard',
-                    label: 'Dashboard',
-                    children: (
-                      <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                        <Dashboard
-                          projects={projects}
-                          activeProjectId={activeProject?.project.id}
-                          onSelectProject={(p) => setActiveProject(p)}
-                        />
-
-                        <Card bordered={false} className="glass-card">
-                          <Flex justify="space-between" align="center" style={{ marginBottom: 12 }}>
-                            <Title level={4} style={{ margin: 0 }}>
-                              Uso por projeto
-                            </Title>
-                            <Tag icon={<FireOutlined />} color="red">
-                              Gargalos
-                            </Tag>
-                          </Flex>
-                          <Row gutter={[12, 12]}>
-                            {[...projects.autoProjects, ...projects.manualProjects].map((p) => {
-                              const projectStats = p.containers.map((c) => statsAll.find((s) => s.id === c.id)).filter(Boolean) as ContainerStats[];
-                              const cpu = projectStats.reduce((sum, s) => sum + (s.cpuPercent || 0), 0);
-                              const mem = projectStats.reduce((sum, s) => sum + (s.memUsageBytes || 0), 0);
-                              return (
-                                <Col xs={24} md={12} lg={8} key={p.project.id}>
-                                  <Card size="small" hoverable>
-                                    <Text strong>{p.project.name}</Text>
-                                    <Paragraph type="secondary" style={{ marginBottom: 6 }}>
-                                      CPU {cpu.toFixed(1)}% · Mem {formatGb(mem)}
-                                    </Paragraph>
-                                    <Progress percent={Math.min(cpu, 100)} size="small" status={cpu > 85 ? 'exception' : 'active'} />
-                                    <Progress
-                                      percent={
-                                        p.containers.length && systemInfo
-                                          ? Math.min(
-                                              (mem / ((systemInfo.memory.totalMb || 1) * 1024 * 1024)) * 100,
-                                              100,
-                                            )
-                                          : 0
-                                      }
-                                      size="small"
-                                      strokeColor="#13c2c2"
-                                      trailColor="#f0f0f0"
-                                    />
-                                  </Card>
-                                </Col>
-                              );
-                            })}
-                          </Row>
-                        </Card>
-
-                              {activeProject && (
-                              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                                <Flex justify="space-between" align="center">
-                                  <Title level={4} style={{ margin: 0 }}>
-                                    {activeProject.project.name}
-                                  </Title>
-                              <Space>
-                                <Button size="small" onClick={() => handleProjectAction(activeProject.project.id, 'start')}>
-                                  Start all
-                                </Button>
-                                <Button size="small" danger onClick={() => handleProjectAction(activeProject.project.id, 'stop')}>
-                                  Stop all
-                                </Button>
-                                <Button
-                                  size="small"
-                                  type="primary"
-                                  ghost
-                                  onClick={() => handleProjectAction(activeProject.project.id, 'restart')}
-                                >
-                                  Restart all
-                                </Button>
-                                {activeProject.project.source === 'auto' && (
-                                  <Button
-                                    size="small"
-                                    icon={<FileTextOutlined />}
-                                    onClick={() => setFilesEditorProject({ id: activeProject.project.id, name: activeProject.project.name })}
-                                  >
-                                    Arquivos
-                                  </Button>
-                                )}
-                              </Space>
-                            </Flex>
-                          <Row gutter={[16, 16]}>
-                            {activeProject.containers.map((c) => (
-                              <Col xs={24} md={12} key={c.id}>
-                                <ContainerCard
-                                  container={c}
-                                  stats={statsAll.find((s) => s.id === c.id)}
-                                  onStart={() => handleContainerAction(c.id, 'start')}
-                                  onStop={() => handleContainerAction(c.id, 'stop')}
-                                  onRestart={() => handleContainerAction(c.id, 'restart')}
-                                  onInspect={() => handleInspect(c)}
-                                  onSelectLogs={() => setLogsContainer(c.id)}
-                                  />
-                                </Col>
-                              ))}
-                            </Row>
-                          </Space>
-                        )}
-
-                        {inspectData && inspectContainer && (
-                          <Card bordered className="glass-card">
-                            <Flex justify="space-between" align="center" style={{ marginBottom: 12 }}>
-                              <Title level={5} style={{ margin: 0 }}>
-                                Variáveis de ambiente ({inspectContainer.name})
-                              </Title>
-                              <Tag color="default">read-only</Tag>
-                            </Flex>
-                            <Row gutter={[12, 12]}>
-                              {inspectData.env.map((item) => (
-                                <Col xs={24} sm={12} md={8} key={item.key}>
-                                  <Card size="small" bordered>
-                                    <Text strong>{item.key}</Text>
-                                    <Paragraph className="mono" type="secondary">
-                                      {item.value}
-                                    </Paragraph>
-                                  </Card>
-                                </Col>
-                              ))}
-                            </Row>
-                            <Divider />
-                            <Flex justify="space-between" align="center">
-                              <Space direction="vertical" size={4}>
-                                <Title level={5} style={{ margin: 0 }}>
-                                  Limites de recursos
-                                </Title>
-                                <Space>
-                                  <Text type="secondary">CPU: {inspectData.limits.cpus ?? 'unset'}</Text>
-                                  <Text type="secondary">Memória: {inspectData.limits.memory ?? 'unset'}</Text>
-                                </Space>
-                                {stats && (
-                                  <Space>
-                                    <Tag color="blue">CPU {stats.cpuPercent?.toFixed(2) ?? '-'}%</Tag>
-                                    <Tag color="cyan">
-                                      MEM {formatBytes(stats.memUsageBytes)} / {formatBytes(stats.memLimitBytes)} (
-                                      {stats.memPercent?.toFixed(2) ?? '-'}%)
-                                    </Tag>
-                                  </Space>
-                                )}
-                              </Space>
-                              <Button
-                                type="primary"
-                                onClick={() =>
-                                  openResourceModal(inspectContainer, {
-                                    cpus: inspectData.limits.cpus,
-                                    memory: inspectData.limits.memory,
-                                  })
-                                }
-                              >
-                                Editar limites
-                              </Button>
-                            </Flex>
-                          </Card>
-                        )}
-                      </Space>
-                    ),
-                  },
-                  {
-                    key: 'logs',
-                    label: 'Logs',
-                    children: (
-                      <Card bordered className="glass-card">
-                        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                          <Flex gap={12} wrap="wrap" align="flex-end">
-                            <div style={{ minWidth: 220 }}>
-                              <Text strong>Container</Text>
-                              <Select
-                                showSearch
-                                placeholder="Selecione"
-                                value={logsContainer}
-                                onChange={(v) => setLogsContainer(v)}
-                                style={{ width: '100%', marginTop: 4 }}
-                                options={containers.map((c) => ({ value: c.id, label: `${c.name} (${c.state})` }))}
+          {/* Main Content Tabs */}
+          <Card styles={{ body: { padding: 0 } }}>
+            <Tabs
+              defaultActiveKey="projects"
+              style={{ padding: '0 16px' }}
+              items={[
+                {
+                  key: 'projects',
+                  label: (
+                    <Flex align="center" gap={8}>
+                      <AppstoreOutlined />
+                      Projetos
+                    </Flex>
+                  ),
+                  children: (
+                    <div style={{ padding: '16px 0' }}>
+                      {loading && allProjects.length === 0 ? (
+                        <Flex justify="center" style={{ padding: 48 }}>
+                          <Spin size="large" />
+                        </Flex>
+                      ) : allProjects.length === 0 ? (
+                        <Empty description="Nenhum projeto encontrado" />
+                      ) : (
+                        <Row gutter={[16, 16]}>
+                          {allProjects.map((p) => (
+                            <Col xs={24} lg={12} key={p.project.id}>
+                              <ProjectCard
+                                projectData={p}
+                                stats={statsAll}
+                                loading={loading}
+                                onStartProject={() => handleProjectAction(p.project.id, 'start')}
+                                onStopProject={() => handleProjectAction(p.project.id, 'stop')}
+                                onRestartProject={() => handleProjectAction(p.project.id, 'restart')}
+                                onStartContainer={(id) => handleContainerAction(id, 'start')}
+                                onStopContainer={(id) => handleContainerAction(id, 'stop')}
+                                onRestartContainer={(id) => handleContainerAction(id, 'restart')}
+                                onViewLogs={handleViewLogs}
+                                onInspect={handleInspect}
+                                onEditFiles={() => setFilesEditorProject({ id: p.project.id, name: p.project.name })}
                               />
-                            </div>
-                            <div>
-                              <Text strong>Tail</Text>
-                              <Segmented
-                                style={{ marginTop: 4 }}
-                                options={LINES_OPTIONS}
-                                value={lines}
-                                onChange={(v) => setLines(v as string)}
-                              />
-                            </div>
-                            <Space>
-                              <Button
-                                type="primary"
-                                disabled={!logsContainer}
-                                onClick={() => logsContainer && handleLogsFetch(logsContainer, lines)}
-                              >
-                                Buscar Logs
-                              </Button>
-                            </Space>
-                          </Flex>
-                          <div className="log-area">
-                            <pre className="mono logs-pre">{logs || 'Selecione um container e clique em "Buscar Logs".'}</pre>
-                          </div>
-                        </Space>
-                      </Card>
-                    ),
-                  },
-                  {
-                    key: 'settings',
-                    label: 'Settings',
-                    children: (
-                      <Card bordered className="glass-card">
-                        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                          <Title level={4} style={{ margin: 0 }}>
-                            Conexão VPS
-                          </Title>
-                          <Alert
-                            type="info"
-                            message={
-                              <span>
-                                Configure em <code>.env.local</code> (ignorados pelo git): VPS_HOST, VPS_PORT,
-                                VPS_USERNAME, VPS_PRIVATE_KEY_PATH, opcional VPS_PASSWORD / VPS_PRIVATE_KEY_PASSPHRASE.
-                              </span>
-                            }
-                          />
-                          <Button icon={<SettingOutlined />} onClick={testConnection}>
-                            Testar conexão SSH
+                            </Col>
+                          ))}
+                        </Row>
+                      )}
+                    </div>
+                  ),
+                },
+                {
+                  key: 'logs',
+                  label: (
+                    <Flex align="center" gap={8}>
+                      <FileTextOutlined />
+                      Logs
+                    </Flex>
+                  ),
+                  children: (
+                    <div style={{ padding: '16px 0' }}>
+                      <Alert
+                        message="Visualizar Logs"
+                        description="Clique no botão de logs em qualquer container para abrir o painel de logs."
+                        type="info"
+                        showIcon
+                        action={
+                          <Button onClick={() => setLogsDrawerOpen(true)}>
+                            Abrir Painel de Logs
                           </Button>
-                          {settingsStatus && (
-                            <Text type="secondary" style={{ display: 'block' }}>
-                              {settingsStatus}
-                            </Text>
-                          )}
-                          <Text type="secondary">
-                            Nunca commitar segredos. Veja <Link href="../docs/SECURITY-NOTES.md">docs/SECURITY-NOTES.md</Link>.
-                          </Text>
+                        }
+                      />
+                    </div>
+                  ),
+                },
+                {
+                  key: 'settings',
+                  label: (
+                    <Flex align="center" gap={8}>
+                      <SettingOutlined />
+                      Configurações
+                    </Flex>
+                  ),
+                  children: (
+                    <div style={{ padding: '16px 0' }}>
+                      <Card size="small">
+                        <Title level={5}>Conexão VPS</Title>
+                        <Paragraph type="secondary">
+                          Configure as variáveis de ambiente no Vercel: VPS_HOST, VPS_PORT,
+                          VPS_USERNAME, VPS_PRIVATE_KEY ou VPS_PASSWORD.
+                        </Paragraph>
+                        <Space>
+                          <Button icon={<SettingOutlined />} onClick={testConnection}>
+                            Testar Conexão SSH
+                          </Button>
                         </Space>
+                        {settingsStatus && (
+                          <Alert
+                            message={settingsStatus}
+                            type={settingsStatus.includes('Erro') ? 'error' : 'success'}
+                            style={{ marginTop: 16 }}
+                          />
+                        )}
                       </Card>
-                    ),
-                  },
-                ]}
-              />
-            </Card>
-          </Content>
-        </Layout>
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          </Card>
+        </Space>
+      </Content>
 
-        <Modal
-          open={resourceModal.open}
-          title="Confirmar limites de recurso"
-          onCancel={() => setResourceModal({ open: false })}
-          onOk={confirmResourceUpdate}
-          okText="Aplicar"
-        >
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <InputNumber
-              style={{ width: '100%' }}
-              addonBefore="CPUs"
-              placeholder="ex: 0.5 ou 2"
-              value={resourceModal.cpus ? Number(resourceModal.cpus) : undefined}
-              min={0}
-              step={0.1}
-              onChange={(val) => setResourceModal((s) => ({ ...s, cpus: val ? String(val) : undefined }))}
-            />
-            <Input
-              addonBefore="Memória"
-              placeholder="ex: 512m ou 1g"
-              value={resourceModal.memory ?? ''}
-              onChange={(e) => setResourceModal((s) => ({ ...s, memory: e.currentTarget.value || undefined }))}
-            />
-            <Alert
-              type="warning"
-              message={
-                <span>
-                  Comando: <code>{resourceCommandPreview()}</code>
-                </span>
-              }
-            />
-          </Space>
-        </Modal>
+      {/* Drawers */}
+      <LogsDrawer
+        open={logsDrawerOpen}
+        onClose={() => setLogsDrawerOpen(false)}
+        containers={containers}
+        selectedContainerId={logsContainerId}
+        onSelectContainer={setLogsContainerId}
+        fetchLogs={handleFetchLogs}
+      />
 
-        <ProjectFilesEditor
-          open={!!filesEditorProject}
-          projectId={filesEditorProject?.id || ''}
-          projectName={filesEditorProject?.name || ''}
-          onClose={() => setFilesEditorProject(null)}
-          fetchJson={fetchJson}
-          onSuccess={(msg) => message.success(msg)}
-          onError={(msg, desc) => notification.error({ message: msg, description: desc })}
-        />
+      <InspectDrawer
+        open={inspectDrawerOpen}
+        onClose={() => {
+          setInspectDrawerOpen(false);
+          setInspectContainer(null);
+          setInspectData(null);
+          setInspectStats(null);
+        }}
+        container={inspectContainer}
+        inspectData={inspectData}
+        stats={inspectStats}
+        loading={inspectLoading}
+        onUpdateResources={handleUpdateResources}
+      />
+
+      <ProjectFilesEditor
+        open={!!filesEditorProject}
+        projectId={filesEditorProject?.id || ''}
+        projectName={filesEditorProject?.name || ''}
+        onClose={() => setFilesEditorProject(null)}
+        fetchJson={fetchJson}
+        onSuccess={(msg) => message.success(msg)}
+        onError={(msg, desc) => notification.error({ message: msg, description: desc })}
+      />
+    </Layout>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <AntdApp>
+        <Dashboard />
       </AntdApp>
-    </ConfigProvider>
+    </ThemeProvider>
   );
 }
 
