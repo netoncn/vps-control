@@ -338,5 +338,8 @@ export async function createProject(config: CreateProjectConfig): Promise<string
   const composePath = `${projectPath}/docker-compose.yml`;
   await writeProjectFile(composePath, composeContent);
 
+  // Executar docker compose up -d
+  await deployProject(projectPath);
+
   return projectPath;
 }
