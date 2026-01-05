@@ -14,7 +14,7 @@ import {
   Flex,
   Space,
 } from 'antd';
-import { SettingOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { SettingOutlined, AppstoreOutlined, PlusOutlined } from '@ant-design/icons';
 import { ThemeProvider } from './theme/ThemeContext';
 import { AppHeader } from './components/AppHeader';
 import { StatsPanel } from './components/StatsPanel';
@@ -22,6 +22,7 @@ import { ProjectCard } from './components/ProjectCard';
 import { LogsDrawer } from './components/LogsDrawer';
 import { InspectDrawer } from './components/InspectDrawer';
 import { ProjectFilesEditor } from './components/ProjectFilesEditor';
+import { NewProjectModal } from './components/NewProjectModal';
 import { Login } from './components/Login';
 import { useAuth } from './hooks/useAuth';
 import './App.css';
@@ -127,6 +128,9 @@ function Dashboard() {
 
   // Files Editor
   const [filesEditorProject, setFilesEditorProject] = useState<{ id: string; name: string } | null>(null);
+
+  // New Project Modal
+  const [newProjectModalOpen, setNewProjectModalOpen] = useState(false);
 
   // Settings test
   const [settingsStatus, setSettingsStatus] = useState<string>('');
@@ -240,6 +244,32 @@ function Dashboard() {
     }
   };
 
+  const handleCreateProject = async (data: {
+    projectName: string;
+    services: Array<{
+      serviceName: string;
+      image: string;
+      host: string;
+      port: number;
+      cpus: string;
+      memory: string;
+      envVars: Array<{ key: string; value: string }>;
+    }>;
+  }) => {
+    try {
+      await fetchJson('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      message.success('Projeto criado com sucesso!');
+      await refresh();
+    } catch (err: any) {
+      notification.error({ message: 'Erro ao criar projeto', description: err.message });
+      throw err;
+    }
+  };
+
   // Loading state
   if (checking) {
     return (
@@ -294,6 +324,15 @@ function Dashboard() {
                   ),
                   children: (
                     <div style={{ padding: '16px 0' }}>
+                      <Flex justify="flex-end" style={{ marginBottom: 16 }}>
+                        <Button
+                          type="primary"
+                          icon={<PlusOutlined />}
+                          onClick={() => setNewProjectModalOpen(true)}
+                        >
+                          Novo Projeto
+                        </Button>
+                      </Flex>
                       {loading && allProjects.length === 0 ? (
                         <Flex justify="center" style={{ padding: 48 }}>
                           <Spin size="large" />
@@ -396,6 +435,12 @@ function Dashboard() {
         fetchJson={fetchJson}
         onSuccess={(msg) => message.success(msg)}
         onError={(msg, desc) => notification.error({ message: msg, description: desc })}
+      />
+
+      <NewProjectModal
+        open={newProjectModalOpen}
+        onClose={() => setNewProjectModalOpen(false)}
+        onSubmit={handleCreateProject}
       />
     </Layout>
   );

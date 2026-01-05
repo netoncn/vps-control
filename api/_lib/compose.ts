@@ -216,3 +216,127 @@ export async function redeployProject(projectPath: string): Promise<string> {
 
   return stdout || 'Redeploy completed';
 }
+
+export type ServiceConfig = {
+  serviceName: string;
+  image: string;
+  host: string;
+  port: number;
+  cpus: string;
+  memory: string;
+  envVars: Array<{ key: string; value: string }>;
+};
+
+export type CreateProjectConfig = {
+  projectName: string;
+  services: ServiceConfig[];
+};
+
+/**
+ * Gera o conteúdo do docker-compose.yml
+ */
+function generateDockerCompose(config: CreateProjectConfig): string {
+  const services: Record<string, any> = {};
+
+  for (const service of config.services) {
+    const containerName = service.serviceName.replace(/-/g, '_');
+
+    services[service.serviceName] = {
+      container_name: containerName,
+      image: service.image,
+      env_file: [`./${service.serviceName}/.env.production`],
+      networks: ['infra_network'],
+      restart: 'unless-stopped',
+      cpus: service.cpus,
+      mem_limit: service.memory,
+      labels: [
+        'traefik.enable=true',
+        `traefik.http.routers.${service.serviceName}.rule=Host(\`${service.host}\`)`,
+        `traefik.http.routers.${service.serviceName}.entrypoints=websecure`,
+        `traefik.http.routers.${service.serviceName}.tls.certresolver=le`,
+        `traefik.http.routers.${service.serviceName}.service=${service.serviceName}`,
+        `traefik.http.services.${service.serviceName}.loadbalancer.server.port=${service.port}`,
+      ],
+    };
+  }
+
+  // Build YAML manually to match the expected format
+  let yaml = 'version: "3.9"\n\n';
+  yaml += 'networks:\n';
+  yaml += '  infra_network:\n';
+  yaml += '    external: true  # usa a mesma rede da infra\n\n';
+  yaml += 'services:\n';
+
+  for (const service of config.services) {
+    const containerName = service.serviceName.replace(/-/g, '_');
+    yaml += `  ${service.serviceName}:\n`;
+    yaml += `    container_name: ${containerName}\n`;
+    yaml += `    image: ${service.image}\n`;
+    yaml += `    env_file:\n`;
+    yaml += `      - ./${service.serviceName}/.env.production\n`;
+    yaml += `    networks:\n`;
+    yaml += `      - infra_network\n`;
+    yaml += `    restart: unless-stopped\n`;
+    yaml += `    cpus: "${service.cpus}"\n`;
+    yaml += `    mem_limit: "${service.memory}"\n`;
+    yaml += `    labels:\n`;
+    yaml += `      - "traefik.enable=true"\n`;
+    yaml += `      - "traefik.http.routers.${service.serviceName}.rule=Host(\`${service.host}\`)"\n`;
+    yaml += `      - "traefik.http.routers.${service.serviceName}.entrypoints=websecure"\n`;
+    yaml += `      - "traefik.http.routers.${service.serviceName}.tls.certresolver=le"\n`;
+    yaml += `      - "traefik.http.routers.${service.serviceName}.service=${service.serviceName}"\n`;
+    yaml += `      - "traefik.http.services.${service.serviceName}.loadbalancer.server.port=${service.port}"\n`;
+  }
+
+  return yaml;
+}
+
+/**
+ * Gera o conteúdo do arquivo .env.production
+ */
+function generateEnvFile(envVars: Array<{ key: string; value: string }>): string {
+  return envVars
+    .filter((e) => e.key.trim() !== '')
+    .map((e) => `${e.key}=${e.value}`)
+    .join('\n');
+}
+
+/**
+ * Cria um novo projeto Docker com a estrutura completa
+ */
+export async function createProject(config: CreateProjectConfig): Promise<string> {
+  const projectPath = `/srv/${config.projectName}`;
+
+  // Verificar se o projeto já existe
+  const { code: existsCode } = await execSSH(`test -d "${projectPath}" && echo "exists"`);
+  if (existsCode === 0) {
+    throw new Error(`Projeto "${config.projectName}" já existe em /srv`);
+  }
+
+  // Criar pasta do projeto
+  const { code: mkdirCode, stderr: mkdirErr } = await execSSH(`mkdir -p "${projectPath}"`);
+  if (mkdirCode !== 0) {
+    throw new Error(`Falha ao criar pasta do projeto: ${mkdirErr}`);
+  }
+
+  // Criar pastas para cada serviço
+  for (const service of config.services) {
+    const servicePath = `${projectPath}/${service.serviceName}`;
+    const { code, stderr } = await execSSH(`mkdir -p "${servicePath}"`);
+    if (code !== 0) {
+      throw new Error(`Falha ao criar pasta do serviço ${service.serviceName}: ${stderr}`);
+    }
+
+    // Criar arquivo .env.production
+    const envContent = generateEnvFile(service.envVars);
+    const envPath = `${servicePath}/.env.production`;
+    await writeProjectFile(envPath, envContent);
+  }
+
+  // Criar docker-compose.yml
+  const composeContent = generateDockerCompose(config);
+  const composePath = `${projectPath}/docker-compose.yml`;
+  await writeProjectFile(composePath, composeContent);
+
+  return projectPath;
+}
