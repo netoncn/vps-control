@@ -42,24 +42,26 @@ type NewProjectModalProps = {
   onSubmit: (data: NewProjectFormData) => Promise<void>;
 };
 
-const defaultService: ServiceConfig = {
-  serviceName: '',
-  image: 'ghcr.io/',
-  host: '',
-  port: 3000,
-  cpus: '0.75',
-  memory: '1g',
-  envVars: [{ key: '', value: '' }],
-};
+function createDefaultService(): ServiceConfig {
+  return {
+    serviceName: '',
+    image: 'ghcr.io/',
+    host: '',
+    port: 3000,
+    cpus: '0.75',
+    memory: '1g',
+    envVars: [{ key: '', value: '' }],
+  };
+}
 
 export function NewProjectModal({ open, onClose, onSubmit }: NewProjectModalProps) {
   const [form] = Form.useForm<NewProjectFormData>();
   const [loading, setLoading] = useState(false);
-  const [services, setServices] = useState<ServiceConfig[]>([{ ...defaultService }]);
+  const [services, setServices] = useState<ServiceConfig[]>([createDefaultService()]);
 
   const handleClose = () => {
     form.resetFields();
-    setServices([{ ...defaultService }]);
+    setServices([createDefaultService()]);
     onClose();
   };
 
@@ -93,7 +95,7 @@ export function NewProjectModal({ open, onClose, onSubmit }: NewProjectModalProp
   };
 
   const addService = () => {
-    setServices([...services, { ...defaultService }]);
+    setServices([...services, createDefaultService()]);
   };
 
   const removeService = (index: number) => {
@@ -145,7 +147,7 @@ export function NewProjectModal({ open, onClose, onSubmit }: NewProjectModalProp
         layout="vertical"
         initialValues={{
           projectName: '',
-          services: [defaultService],
+          services: [createDefaultService()],
         }}
       >
         <Form.Item
